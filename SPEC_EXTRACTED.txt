@@ -1,0 +1,451 @@
+
+MusicHub
+Product and Engineering Specification
+20 October 2026
+Document version: 0.1Status: MVP design baselinePlatform: AndroidWorking package ID: com.pulkit.musichubPurpose: Product requirements, visual system and implementation baseline
+Product in one sentence: MusicHub is a quiet, native Android control surface that helps a user see and control music playing in supported music apps, without pretending to replace those apps or stream their audio itself.
+
+1. Executive summary
+MusicHub brings a consistent control surface to Spotify, YouTube Music and Amazon Music on Android. The user should not need to remember which app is active merely to see the track title, pause playback, or skip a track. MusicHub should show the source clearly, expose only controls the source actually supports, and open the native music app when a task belongs there.
+This is a controller and launcher, not a fourth streaming service. Audio playback, subscriptions, DRM, account entitlements and service queues remain owned by the source service. MusicHub must never claim that a feature works uniformly when the underlying service does not expose it.
+The project should start with the most dependable Android integration path: observe active media sessions with explicit user-granted notification access, read the metadata those sessions expose, and send standard transport commands when supported. Provider-specific integrations can add capabilities later. Spotify App Remote is a documented option but requires the Spotify app and user authorization. Amazon Music’s published Web API documentation currently describes playback APIs as closed beta. For YouTube Music, this design does not depend on private endpoints or scraping; generic Android media-session support and service deep links are the conservative baseline. See the provider notes and references near the end of this document.
+The visual direction is deliberately restrained: solid surfaces, a clear type hierarchy, consistent spacing, small purposeful icons, no gradients, no glow effects, no glassmorphism, no fabricated recommendation cards, and no decorative UI that looks generated rather than designed.
+2. Product principles
+Tell the truth about capability. A control is visible only when it is supported by the current source. A missing feature is not represented as an inactive-looking button that never works.
+Keep the source obvious. Every playback view names the service that owns the session. Switching focus is not described as transferring playback.
+Native first. Use Kotlin, Jetpack Compose and Android’s media-session APIs. The app should feel like a coherent Android utility, not a website placed inside a shell.
+Local-first privacy. Playback metadata and notification-derived state stay on-device in the MVP. Do not upload notification content, listening history or track names to a server.
+No unsupported integration tricks. Do not scrape private endpoints, reverse engineer private app APIs, bypass subscriptions/DRM, or intercept audio.
+Small surface area. Build one reliable path end-to-end before adding catalog search, playlist synchronization or cloud features.
+Useful failure states. If access is denied, a service is absent or a session hides metadata, explain what happened and provide the next practical action.
+3. Goals, non-goals and success criteria
+3.1 Goals
+Detect currently active Android media sessions after the user explicitly enables notification access.
+Show current track metadata when the source publishes it: title, artist, artwork, playback state, duration and position where available.
+Send play, pause, next and previous commands through a media session when the source exposes those actions.
+Support multiple active sessions without silently sending commands to the wrong app.
+Open the installed Spotify, YouTube Music or Amazon Music app through supported launch intents or links.
+Use one stable app interface even when providers expose different features.
+Work without a backend or account on MusicHub.
+Keep the code structured so an official provider SDK/API can be added without rewriting the UI.
+3.2 Explicit non-goals for the MVP
+Streaming, caching, downloading, remixing or mixing copyrighted audio inside MusicHub.
+Replacing the main browsing/player experience of any music service.
+A guarantee that every service exposes play, pause, seek, queue, like, shuffle or repeat.
+Guaranteed federated catalog search across all three services.
+Playlist migration or synchronization.
+A universal queue assembled from tracks across providers.
+Account-password collection or storing service credentials directly.
+A server, recommendation engine, social layer, ads or analytics.
+Android Auto support in the first milestone.
+3.3 MVP success criteria
+The first useful build is successful when all of the following are true on the developer’s physical Android phone:
+The app installs, starts and does not crash on a clean launch.
+The app clearly explains notification access before sending the user to Android Settings.
+After access is enabled, the app detects an active music session and updates its track metadata as playback changes.
+Play/pause and next/previous work where the session publishes those actions.
+Unsupported actions are hidden or disabled with a clear reason, not presented as functional.
+Tapping a service opens that installed service, or shows a clear unavailable state.
+If no session is active, MusicHub displays a useful empty state rather than fake tracks or empty charts.
+The UI remains legible in large-text settings and on narrow screens.
+4. Scope by release
+Release
+Included
+Intentionally deferred
+V0.1: Session hub
+Native app shell; permission onboarding; active-session discovery; metadata; standard transport controls; source selection; service launch; basic settings; empty/error states.
+Federated search, saved library, backend, custom Spotify integration, cross-service playlist data.
+V0.2: Provider enrichment
+Spotify App Remote spike; improved deep links; local saved service links; richer diagnostics; capability-aware progress/seek if supported.
+Assuming Spotify playback is available to every account; assuming Amazon API access; unsupported YT Music endpoints.
+V0.3: Search and library
+Search routing and service-specific results where authorized APIs and terms allow; local saved references; import/export only if policy-compliant.
+Unified playlists/queue unless each provider can legally and technically support it.
+Later
+Official Amazon API integration if access is granted; more settings; accessibility and regression polish; possible widgets.
+Android Auto or commercial distribution until interaction, permission and provider-policy reviews are complete.
+A later release is not a promise that the necessary third-party access will be granted. Provider integrations are gated by technical tests and terms-of-service review.
+5. Provider and API reality
+The design must separate three different things: detecting an Android media session, controlling playback through that session, and searching/browsing a provider catalog. They are different capabilities and must not be treated as one all-or-nothing integration.
+Provider/path
+Baseline plan
+Known constraints
+Product behavior
+Android media session
+Use MediaSessionManager, MediaController and MediaController.TransportControls after user-enabled notification access.
+A source may omit metadata, artwork, duration, seek support or certain actions. A session can disappear when playback stops.
+Display only reported data/actions. Keep controls capability-aware.
+Spotify App Remote
+Evaluate as an optional documented adapter after the generic session path works.
+Spotify app must be installed; user authorization is required. Track playback capability can depend on Premium/account capability. Spotify’s policies restrict commercial streaming use and replacing/mimicking Spotify’s core experience.
+Use it only for independent utility that complements Spotify. Never assume it removes session or account limitations.
+YouTube Music
+Start with standard Android media-session observation/transport controls and supported app links.
+No equivalent official public YouTube Music Android playback-control SDK is assumed by this plan. Behavior must be verified on a real device and can vary by app version.
+Label the integration as media-session based. Do not scrape private endpoints or imitate internal app APIs.
+Amazon Music
+Start with standard media-session observation/transport controls and launch links. Isolate any future official API adapter.
+Amazon’s published Web API playback documentation says the APIs are in closed beta and documentation may change. Access must not be assumed.
+Do not make V0.1 depend on Amazon API credentials or beta access.
+YouTube Data API
+Not a substitute for YouTube Music playback control. Consider only for a separate, authorized search use case after policy review.
+It searches YouTube videos/channels/playlists; it does not itself provide a YouTube Music Android playback-control session.
+Do not label YouTube video search results as a fully integrated YouTube Music catalog.
+Capability model
+Each source must expose a runtime capability set. The UI derives its controls from this set; it must not assume that all MusicProvider implementations support the same actions.
+Suggested capabilities:
+observePlayback
+playPause
+next
+previous
+seek
+shuffle
+repeat
+saveToLibrary
+searchCatalog
+openInService
+queueManagement
+Capabilities must be determined from the active adapter and session, not from the provider’s name alone. For example, one Spotify playback path may expose seek while a generic Android session exposes only play/pause and next/previous.
+6. User journeys
+6.1 First launch
+User opens MusicHub.
+The home screen explains the app’s purpose and that notification access is used to detect active media sessions and read playback metadata.
+The explanation says plainly that notification access is granted in Android Settings and may allow Android to expose other notification information to the listener. MusicHub processes only the data needed for its local playback interface and does not transmit it.
+User chooses Enable media access. Android Settings opens.
+User enables notification access and returns to MusicHub.
+MusicHub verifies access and checks for active sessions.
+If a session exists, show it. If not, show the three supported services and an Open app action for each installed app.
+If the user declines access, the app still works as a service launcher. Do not block the whole app.
+Do not ask for notification access before explaining why it is necessary. Do not describe this permission as a simple media permission; it is a broader notification-access grant.
+6.2 Playback control
+User starts music in a provider app.
+Android publishes a media session.
+MusicHub observes the active session and receives updates.
+Home and player UI show the current source and metadata.
+User taps pause/next/previous.
+MusicHub sends the command to the currently selected session’s controller.
+The session reports its updated state; the UI follows the reported state rather than optimistically pretending the command worked.
+If multiple sessions exist, show a source/session selector. A command must always target the explicitly selected session. Do not switch the selected session silently because another app briefly publishes a session.
+6.3 Opening another provider
+Tapping YouTube Music while Spotify is playing opens YouTube Music. It does not move Spotify’s queue or current track to YouTube Music. The UI copy should say Open YouTube Music, not Transfer playback, unless a future lawful implementation truly supports transfer.
+6.4 Search behavior
+For V0.1, search is a routing screen, not a fake federated catalog. The user enters a query and chooses the service to search. MusicHub opens the service’s native search route when a supported deep link exists; otherwise it opens the service app and tells the user to search there. Unified in-app result lists are deferred until a provider’s official API and policy allow them.
+7. Screen and interaction specification
+7.1 Home
+Purpose: Answer three questions immediately: what is playing, where is it playing, and what can I do now?
+Layout from top to bottom:
+Top app bar: MusicHub on the left; one settings icon on the right. No oversized brand hero.
+Permission/setup message only when access is missing or a provider needs setup. It should be one compact, dismissible/explainable panel, not a permanent warning after setup.
+Now playing section. If active: a single clean horizontal row with artwork (about 56 dp), title, artist, source label and supported transport controls. Tapping the row opens the full player. If none is active: show Nothing playing plus a sentence explaining how to start and compact provider launch actions.
+Music services section: three simple rows or restrained outlined tiles for Spotify, YouTube Music and Amazon Music. Each row shows service name, whether the app is installed where detectable, and an Open or Install action. Do not use three unrelated bright gradients.
+Optional Recently opened section only if MusicHub has real locally recorded entries. Never invent recent tracks, fake recommendations or placeholder charts.
+Bottom navigation: Home, Search, Saved. For V0.1, Search routes to provider search and Saved can show a small, honest placeholder/empty state until local saved references exist. Do not expose empty destinations merely to make the app look more complete; hide or implement them before release.
+7.2 Full player
+Compact top bar with a back/collapse action and overflow menu.
+A clear source label, using the provider’s icon/wordmark only where allowed and available.
+Album artwork centered and responsive, normally 240-300 dp square on a typical phone. Preserve its aspect ratio; use a neutral fallback when absent.
+Title and artist, with sensible two-line wrapping and no text clipping.
+Seek bar only when duration, position and seek action are all meaningfully available. Otherwise omit the bar rather than drawing a false timeline.
+Primary row: previous, play/pause, next. The play/pause button is visually primary but not oversized. Missing actions are hidden or disabled with an accessible explanation.
+Secondary actions such as shuffle, repeat or save appear only when the source supports them and the behavior is confirmed.
+A quiet Open in Spotify / Open in YouTube Music / Open in Amazon Music action.
+If the session drops, transition back to a neutral stopped/empty state without keeping stale metadata on screen indefinitely.
+7.3 Search
+Plain text input, clear button, keyboard search action.
+Service selection using compact chips or a segmented control. Do not imply all services are searched unless they really are.
+Results, if available through supported APIs, must display the source per result. In V0.1, native-app handoff is acceptable and expected.
+No scraped results, no hidden WebView to imitate a service’s UI, and no playback by extracting media URLs.
+7.4 Saved
+In a later MVP stage, this stores references, not audio: provider ID, track/album/playlist title, provider-specific URI/URL, optional artwork URL and timestamp. It must be clear that the content belongs to the provider. Opening a saved reference launches the native service. Avoid promising library synchronization until implemented and approved.
+7.5 Settings
+Keep settings minimal:
+Media/notification access status and a button to manage it.
+Installed-service status and open actions.
+Selected-session behavior: keep current selection, or allow explicit manual choice. Do not silently steal selection.
+Privacy explanation: which metadata is read, where it is stored, and how to revoke access.
+Diagnostics: app version, Android version, session-monitor status and provider capability flags. Do not log song titles or artist names by default.
+About, open-source notices and privacy policy when preparing a public release.
+7.6 Required empty and error states
+Situation
+Message/action
+Notification access not granted
+Explain why it is needed; action opens the relevant Android Settings page. Keep service launch available.
+No active session
+Nothing playing plus actions to open installed services.
+Service not installed
+Not installed and an official store/app link where available. Never claim it is connected.
+Session has no artwork
+Use a neutral solid placeholder and music-note icon.
+Metadata is incomplete
+Show the fields present; don’t substitute invented title/artist values.
+Command not supported
+Hide/disable the action and explain when useful.
+Session disappeared during a command
+Refresh sessions, show the new status and avoid a crash.
+Multiple sessions
+Require an explicit current source selection when ambiguity exists.
+Provider SDK authorization failed
+Display a short reason and a retry/open-provider action; never loop authentication repeatedly.
+8. Visual design system
+The target is a mature utility, closer to a well-made system app than a promotional landing page. It should be calm, information-dense enough to be useful, and visually quiet.
+8.1 Non-negotiable visual constraints
+No gradients, glow, blur-as-decoration, glassmorphism or animated background blobs.
+No random giant cards, floating circles, decorative waveforms, artificial charts or dashboard widgets that do not serve a task.
+No excessive rounded pills. Use rounded corners only where they clarify grouping.
+No fabricated listening stats, personalized mixes or recommendations.
+No service color flooding the entire screen. Service branding is a small identifier, not the entire theme.
+No emoji as production icons. Use Material Symbols or consistent vector assets.
+No motion that delays ordinary tasks. Animation is feedback, not a feature.
+8.2 Palette
+Start with a dark theme and use a single restrained accent. Support system theme selection after core behavior is stable.
+Token
+Value
+Use
+background
+#101214
+Main window background
+surface
+#181B1E
+Standard content surface
+surfaceRaised
+#202428
+Menus, dialogs and elevated controls
+border
+#2B3035
+Dividers and outlined controls
+textPrimary
+#F2F4F3
+Main content
+textSecondary
+#A7AFB5
+Artist labels, helper copy
+textMuted
+#777F86
+Disabled/tertiary copy, only when contrast remains acceptable
+accent
+#A8C7B8
+Focus, selected state and primary action
+error
+#D97C7C
+Errors only
+warning
+#D5B779
+Setup/permission caution
+Service brand colors can be used inside official/recognizable provider marks when appropriate; do not use them as large page fills. Verify contrast rather than relying on color alone to communicate status.
+8.3 Typography and spacing
+Use Android’s native Roboto/system typography with a deliberate Material 3 type scale.
+Screen title: approximately 26-30 sp, medium/semibold.
+Section heading: 18-20 sp, medium.
+Track title: 16-18 sp, medium.
+Body/helper text: 14-16 sp.
+Metadata and compact labels: 12-14 sp, subject to readability.
+Use an 8 dp spacing rhythm, with 4 dp adjustments only where necessary.
+Typical horizontal screen padding: 20 dp; content rows: 16 dp vertical padding; minimum interactive target: 48 x 48 dp.
+Standard corner radius: 10-12 dp; prominent player/artwork containers can use 14-16 dp. Do not round every component identically.
+Use consistent icon stroke/weight, usually 20-24 dp. Align icons to text baselines and ensure an accessible description.
+8.4 Motion, artwork and responsiveness
+Use quick state transitions around 120-220 ms; avoid springy overshoot.
+Artwork should load asynchronously and preserve layout while loading. Cache only normal artwork images/URLs as permitted; never cache audio.
+Handle long titles, right-to-left text, missing artwork, small screens and large font settings.
+Respect system reduced-animation preferences where applicable.
+Use color, text and icon state together; color alone cannot indicate playing/paused/error.
+9. Technical architecture
+9.1 Stack
+Layer
+Choice
+Reason
+Language
+Kotlin
+Native Android integration and type safety
+UI
+Jetpack Compose + Material 3
+Native declarative UI and accessible components
+State
+ViewModel + Kotlin Coroutines/Flow
+Lifecycle-aware state and session updates
+Navigation
+Navigation Compose, only if multiple screens warrant it
+Standard, testable navigation
+Settings
+DataStore
+Small local preferences
+Saved references
+Room only when the Saved feature is implemented
+Structured local persistence without starting with an unnecessary database
+Android media
+MediaSessionManager, MediaController, MediaController.TransportControls
+Observe and control exposed third-party media sessions
+Provider-specific SDK/API
+Isolated adapter modules
+Optional capabilities must not leak into the UI layer
+Backend
+None in MVP
+No account sync or server-side requirement exists
+DI
+Start with constructor injection; add Hilt only if graph complexity justifies it
+Avoid adding infrastructure before it provides value
+Media3 is not required for V0.1 because MusicHub does not play audio or own a player session. Add it only if a future, separate feature has a documented reason to own a media session. Do not add libraries simply because they are common in music-player tutorials.
+9.2 Layer boundaries
+Presentation: Compose screens, reusable UI components and ViewModels. ViewModels expose immutable UI state and dispatch user intents; they do not call Android media APIs directly.
+Domain: Models and use cases such as ObservePlayback, SelectPlaybackSession, ExecutePlaybackCommand, OpenMusicService and GetProviderAvailability. Domain logic knows about capabilities, not Android framework classes.
+Data/platform: Android session repository, notification listener service, service launch resolver, DataStore and future provider SDK clients.
+Providers: Provider adapters implement specific operations and report their capabilities. Keep catalog/search interfaces separate from playback control so a provider can support one without falsely claiming the other.
+9.3 Session flow
+MusicSessionListenerService is declared as a NotificationListenerService and becomes usable only after the user enables notification access.
+MediaSessionRepository uses the enabled listener component with MediaSessionManager to retrieve active sessions and observe session changes.
+Each active session is wrapped as a MediaController; callbacks publish playback state and metadata as a Flow.
+PlaybackCoordinator builds a normalized PlaybackSnapshot for the selected session and exposes a list of active candidates when more than one exists.
+PlayerViewModel maps the snapshot and its capabilities to UI state.
+User commands travel back through the coordinator to the selected controller’s transport controls. Report the session’s resulting state instead of assuming success.
+Android documents active-session listing as requiring media-control permission or an enabled notification listener; this product uses the latter, user-granted path. Session metadata and available controls are source-dependent, so all operations must tolerate missing values and disconnections.
+9.4 Recommended domain models
+data class PlaybackSnapshot(    val sessionKey: String,    val packageName: String,    val providerId: ProviderId,    val title: String?,    val artist: String?,    val album: String?,    val artworkUri: Uri?,    val durationMs: Long?,    val positionMs: Long?,    val isPlaying: Boolean,    val capabilities: PlaybackCapabilities,    val updatedAtEpochMs: Long)data class PlaybackCapabilities(    val play: Boolean,    val pause: Boolean,    val next: Boolean,    val previous: Boolean,    val seekTo: Boolean,    val shuffle: Boolean,    val repeat: Boolean,    val saveToLibrary: Boolean)
+Treat these as design-level shapes; adapt the exact types to the installed SDK and nullability requirements. In particular, calculate control availability from the current session’s reported actions and adapter support, not a hardcoded provider enum.
+9.5 Adapter design
+Use separate abstractions for playback and catalog tasks. A service may be launchable without exposing a catalog API, and a public search API does not mean playback can be controlled.
+interface PlaybackSourceAdapter {    val providerId: ProviderId    fun observeSessions(): Flow<List<PlaybackSnapshot>>    suspend fun execute(        sessionKey: String,        command: PlaybackCommand    ): CommandResult}interface ServiceLauncher {    val providerId: ProviderId    fun availability(): Flow<ServiceAvailability>    suspend fun openHome(): LaunchResult    suspend fun openSearch(query: String): LaunchResult}
+Do not force every provider into a single interface with many no-op methods. Either use capability objects or small interfaces that match supported behavior. Generic Android media-session control is the first playback adapter; provider-specific SDKs are additive adapters.
+9.6 Session arbitration
+The selected session is explicit and visible in the UI.
+If a user selects a provider session, preserve that selection while it remains valid.
+When it disappears, show a state change and ask the user to choose another session if multiple candidates exist.
+An optional future preference may auto-select the only active session, but must not unexpectedly switch between multiple active apps.
+Every command includes the selected session key. Never route commands to “the first active session” without verifying selection.
+Deduplicate sessions by a stable combination of package name and session identity where possible; do not use track title as an identifier.
+9.7 Suggested source tree
+app/src/main/java/com/pulkit/musichub/  app/    MusicHubApp.kt    MainActivity.kt    navigation/  core/    model/    result/    ui/      theme/      components/  feature/    home/    player/    search/    saved/    settings/  domain/    playback/    providers/    usecase/  data/    session/    service/    preferences/    saved/  platform/    notification/    intent/  provider/    spotify/       # added only after baseline works    amazon/        # only after official access is available
+Keep provider/spotify and provider/amazon optional. If the project remains small, do not create dozens of empty modules; packages are enough until independent build modules offer real value.
+10. Android permissions, privacy and policy
+10.1 Notification access
+Notification access is a sensitive capability. Explain the purpose in context, request it only when the user chooses to enable media controls, and offer a settings shortcut to revoke it. Process only the current playback information required for the interface. Do not mirror notifications into a local database or upload them. Do not log notification text, song titles or artist names in production logs.
+10.2 Package visibility and launch intents
+On Android versions with package visibility filtering, query only the known service packages/intent patterns that the app needs. Avoid broad QUERY_ALL_PACKAGES unless it is demonstrably required and policy-approved. Prefer launching a known app with a supported intent and handle ActivityNotFoundException or equivalent gracefully.
+10.3 Network and credentials
+V0.1 should need no backend and no MusicHub account. Add network access only when a supported, reviewed provider integration requires it. Never ask users to enter their Spotify/Amazon/Google password into MusicHub. Use provider-supported authorization flows. Store tokens only if a specific provider integration requires them, follow the SDK’s storage guidance, and provide an unlink/revoke path.
+10.4 Service policies
+Spotify’s current developer policy limits streaming applications and prohibits building a product that mimics/replaces Spotify’s core experience without prior written permission. Keep MusicHub an independent control utility; do not stream Spotify audio, mix Spotify with other content, or build a full Spotify catalog clone. Amazon API features must remain behind an adapter and should not ship until access and the beta terms permit the intended usage. Treat YouTube Music integration as a supported-link/media-session path unless official API support is verified.
+For public release, complete a current review of each service’s terms, branding rules, data handling rules and store policies. A working local prototype is not automatically approved for publication or monetization.
+11. Reliability, accessibility and testing
+11.1 Required test matrix
+Test
+Expected result
+Clean install, permission not granted
+App opens; explains access; service launch works
+Grant/revoke notification access
+UI detects status changes when returning/resuming
+Spotify active
+Read available metadata; send supported transport commands
+YouTube Music active
+Observe session and expose only actions actually reported
+Amazon Music active
+Same best-effort session behavior; no API beta dependency
+No music app installed
+Screen remains usable and explains unavailable providers
+No active session
+Honest empty state, no stale track
+Multiple active sessions
+Explicit selection; commands target the selected session
+Missing title/artist/artwork/duration
+No crash, broken layout or invented data
+Session ends mid-command
+Recover state and allow retry
+Screen rotates / process is recreated
+Selection and UI restore as designed; no leaked callbacks
+Bluetooth headset buttons
+Platform playback remains functional; UI follows actual reported state
+Large system font
+No clipped labels or unreachable actions
+Light/dark system mode
+Theme behavior is consistent with the implemented setting
+Provider not installed / launch fails
+Useful error with a retry or install route where appropriate
+Test on the developer’s physical device and at least one additional screen size before release. Do not rely exclusively on emulators for provider playback behavior.
+11.2 Engineering quality bars
+No network call or disk I/O on the main thread.
+All media-controller callbacks are unregistered when no longer needed.
+Lifecycle transitions do not leak an Activity, ViewModel or listener.
+A null field from a provider never crashes rendering.
+The UI state has explicit loading, permission-required, no-session, playing, paused and error states.
+Add unit tests for capability mapping, session selection and command routing.
+Add Compose UI tests for first launch, permission missing, empty state and playing state.
+Keep debug diagnostics useful, but strip track-specific data from release logs.
+12. Implementation plan
+Milestone 0: Project baseline
+Create a clean native Kotlin/Compose project separate from the existing Capacitor project.
+Keep the installed Android SDK/JDK setup; do not add NDK/CMake or a backend for this project.
+Confirm assembleDebug and installation on the connected phone.
+Add a simple app theme and a Home screen with truthful placeholder states only.
+Exit condition: clean build and launch on the phone.
+Milestone 1: Permission and session discovery
+Implement the NotificationListenerService declaration and the pre-permission explanation.
+Open the system notification-access settings through a reliable intent with fallback behavior.
+Read active sessions through MediaSessionManager using the listener component.
+Normalize metadata and capabilities into domain models.
+Implement session list selection and empty/error states.
+Exit condition: MusicHub identifies the currently active media session on the phone and updates when the source changes.
+Milestone 2: Playback controls
+Send play/pause, next and previous through the selected MediaController when the session exposes those actions.
+Make controls reflect the supported action set.
+Handle session disappearance and selection changes.
+Add tests for routing and capability mapping.
+Exit condition: controls work on supported sessions without issuing commands to the wrong source.
+Milestone 3: Production-quality UI
+Implement Home, full Player and Settings screens using the design system in Section 8.
+Add artwork loading/fallback, text overflow handling, accessibility labels and large-font testing.
+Remove all fake data and placeholder-only destinations before calling the build an MVP.
+Exit condition: the UI communicates the real playback state clearly and handles edge cases without visual defects.
+Milestone 4: Provider-specific enrichment
+Test Spotify App Remote in a standalone spike. Verify install, authorization, account capability and developer policy requirements before integrating it.
+Test YouTube Music and Amazon Music session metadata/control on the target device and relevant app versions.
+Add an official Amazon Web API adapter only if access is actually granted and the allowed use is clear.
+Build provider-specific diagnostics so failures are distinguishable from Android session failures.
+Exit condition: optional adapters improve coverage without destabilizing generic media-session control.
+Milestone 5: Release readiness
+Complete the test matrix, accessibility pass, privacy copy and service-policy review.
+Add only the destinations and actions that are implemented.
+Review app branding and store listing so MusicHub is not presented as an official music-service client.
+Capture crash-free test evidence on the physical device.
+Exit condition: all MVP acceptance criteria pass and unsupported features are honestly labelled or absent.
+13. Definition of done for V0.1
+The MVP is done only when:
+The app is a native Kotlin/Compose application and builds from a clean checkout.
+Session discovery works with permission granted and fails gracefully without permission.
+Track metadata is live and updates from the selected session.
+Supported transport actions work for a tested session; unsupported actions are not faked.
+A session selector prevents control of the wrong provider.
+Launch actions work or show accurate unavailable states.
+Home, Player and Settings follow the design system and have meaningful empty/error states.
+No backend, private APIs, audio extraction, credential scraping or fabricated content is present.
+No unresolved crash, major accessibility blocker or known critical permission-flow bug remains.
+14. Decisions to keep open
+These decisions are deliberately not locked until the baseline has been proven on-device:
+Whether the default theme is dark-only or follows the system theme.
+Whether a Spotify App Remote adapter adds enough value compared with generic session controls.
+Whether Amazon Music API access can be obtained and used in an allowed manner.
+Whether the Saved screen belongs in the first public build or should remain hidden until local saved references work.
+Whether any federated search approach can be implemented using official APIs without creating an imitation of provider catalog experiences.
+Whether public distribution is feasible under the provider policies and permission expectations.
+15. Official technical references
+The integration baseline should be checked against current official documentation during implementation. Access checked for this specification on 20 October 2026.
+Spotify Android SDK - App Remote playback commands and playback metadata:https://developer.spotify.com/documentation/android
+Spotify Android SDK getting started - app installation, authorization and App Remote setup:https://developer.spotify.com/documentation/android/tutorials/getting-started
+Spotify Developer Policy - streaming, commercial use and limits on replacing the Spotify experience:https://developer.spotify.com/policy
+Android MediaSessionManager reference - listing active sessions and notification-listener requirement:https://developer.android.com/reference/android/media/session/MediaSessionManager
+Android MediaController.TransportControls reference - commands exposed to media controllers:https://developer.android.com/reference/android/media/session/MediaController.TransportControls
+Amazon Music Web API playback overview - currently closed-beta status and queue-controlled playback:https://d332qao9bxuj3h.cloudfront.net/docs/music/API_playback_overview.html
+Amazon Music developer home - API availability/status:https://www.developer.amazon.com/docs/music/landing_home.html
+YouTube Data API search documentation - the official API searches YouTube videos/channels/playlists and is not treated here as a YouTube Music playback-control SDK:https://developers.google.com/youtube/v3/docs/search
+
+Appendix A. Implementation brief for the coding session
+Objective: Build V0.1 only. Do not implement imagined integrations or speculative catalog search.
+Inspect the new native project before changing files. Do not modify the existing Capacitor Vibecheck project.
+Confirm package name and Gradle configuration; keep dependencies minimal.
+Build the Compose theme, navigation and empty states first.
+Implement notification-access explanation and settings handoff.
+Implement active-session listing through MediaSessionManager and the enabled NotificationListenerService component.
+Normalize metadata, playback state and available actions.
+Implement selection-safe play/pause/next/previous commands.
+Build the Home, Player and Settings screens against real session state.
+Run unit/UI tests and assembleDebug; install and test on the connected phone.
+Only then investigate the Spotify adapter. Do not attempt Amazon’s closed-beta API without approved access. Do not scrape YouTube Music.
+UI acceptance rule: a reviewer should be able to identify the active service, the current track and the available actions within a few seconds. Every element must have a purpose. Plain surfaces and crisp hierarchy win over decoration.

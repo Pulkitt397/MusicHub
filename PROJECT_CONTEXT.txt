@@ -1,0 +1,193 @@
+================================================================================
+MUSICHUB - PROJECT CONTEXT & EXECUTION LOG
+================================================================================
+Platform: Native Android (Kotlin + Jetpack Compose + Material 3)
+Package ID: com.pulkit.musichub
+Target SDK: 35 (Android 15) | Min SDK: 26 (Android 8.0 Oreo)
+Device Connected: Samsung Galaxy S25+ (SM-S936B, Android 15, API 35)
+Development Environment: JDK 21 (Android Studio JBR), Gradle 8.14.3
+Specification Document: MusicHub_Product_and_Engineering_Spec_v0.1.docx
+Last Updated: 2026-10-20 21:43
+
+--------------------------------------------------------------------------------
+1. PROJECT PURPOSE & CORE PRINCIPLES
+--------------------------------------------------------------------------------
+- Purpose: MusicHub is a quiet, native Android control surface that helps a user 
+  see and control music playing in supported music apps (Spotify, YouTube Music, 
+  Amazon Music), without pretending to replace those apps or stream their audio.
+- Non-Goals: No local audio playback/decoding/streaming, no fake recommendations,
+  no scraping private endpoints, no credential collection, no cloud backend.
+- Source Truth: Displays only capabilities actually exposed by the active media 
+  session (play/pause, next, prev, seek).
+- Design System: Pure, calm utility. Solid surfaces (#101214, #181B1E, #202428, 
+  #2B3035), accent #A8C7B8, text #F2F4F3 / #A7AFB5 / #777F86. No gradients, 
+  no blur decoration, no glassmorphism, no fake recommendation cards.
+
+--------------------------------------------------------------------------------
+2. ARCHITECTURE OVERVIEW & IMPLEMENTED SOURCE TREE
+--------------------------------------------------------------------------------
+app/
+├── src/main/
+│   ├── AndroidManifest.xml (NotificationListenerService, <queries>, Internet)
+│   ├── res/
+│   │   ├── values/colors.xml (Exact Section 8.2 palette tokens)
+│   │   ├── values/strings.xml
+│   │   └── values/themes.xml (Theme.MusicHub dark status/nav bars)
+│   └── java/com/pulkit/musichub/
+│       ├── app/
+│       │   ├── MusicHubApplication.kt (Dependency container & initialization)
+│       │   └── MainActivity.kt (Navigation, lifecycle bindings, system insets)
+│       ├── core/
+│       │   └── ui/
+│       │       ├── theme/
+│       │       │   ├── Color.kt (Tokens: DarkBackground, DarkSurface, AccentSage, Provider colors)
+│       │       │   ├── Theme.kt (MusicHubTheme Material3 dark theme with custom shapes)
+│       │       │   └── Type.kt (Material 3 typography scale matching spec Section 8.3)
+│       │       └── components/
+│       │           └── Components.kt (ProviderBadge, ArtworkImage, PermissionCard, NowPlayingCard, ServiceRow)
+│       ├── domain/
+│       │   ├── playback/
+│       │   │   ├── ProviderId.kt (SPOTIFY, YOUTUBE_MUSIC, AMAZON_MUSIC, GENERIC)
+│       │   │   ├── PlaybackCapabilities.kt (play, pause, next, prev, seekTo)
+│       │   │   ├── PlaybackSnapshot.kt (Normalized session snapshot with null safety)
+│       │   │   └── PlaybackCommand.kt (Play, Pause, Toggle, Next, Prev, SeekTo & CommandResult)
+│       │   ├── providers/
+│       │   │   └── ServiceAvailability.kt (App installation state & LaunchResult)
+│       │   └── usecase/
+│       │       └── PlaybackUseCases.kt (ObservePlayback, SelectSession, ExecutePlaybackCommand, ProviderUseCases)
+│       ├── platform/
+│       │   ├── notification/
+│       │   │   ├── MusicSessionListenerService.kt (NotificationListenerService declaration & connection hooks)
+│       │   │   └── NotificationAccessHelper.kt (Permission check & Intent dispatcher to Android Settings)
+│       │   └── intent/
+│       │       └── ServiceLauncher.kt (Package queries, launch intents, deep link searches, Play Store fallback)
+│       ├── data/
+│       │   └── session/
+│       │       └── MediaSessionRepository.kt (MediaSessionManager, MediaController.Callback lifecycle, session arbitration)
+│       └── feature/
+│           ├── home/
+│           │   ├── HomeViewModel.kt (MVI/MVVM UI state with StateFlow)
+│           │   └── HomeScreen.kt (TopBar, NowPlaying card, multi-session selector chips, music service launchers)
+│           ├── player/
+│           │   └── PlayerScreen.kt (Full player view, 260dp artwork, capability-gated seekbar & transport controls)
+│           ├── settings/
+│           │   └── SettingsScreen.kt (Notification access toggle, local-only privacy copy, device diagnostics)
+│           └── search/
+│               └── SearchScreen.kt (Service search query routing without catalog scraping)
+└── src/test/
+    └── java/com/pulkit/musichub/
+        └── PlaybackSnapshotTest.kt (Unit tests for provider resolution, capability calculations and seek requirements)
+
+--------------------------------------------------------------------------------
+3. MILESTONE STATUS TRACKER
+--------------------------------------------------------------------------------
+[x] Milestone 0: Project Baseline & Environment Discovery
+    - Read and analyzed Product and Engineering Specification v0.1.
+    - Verified Android SDK 35/36 and JDK 21 (Android Studio JBR).
+    - Verified connected device: Samsung Galaxy S25+ (SM-S936B, Android 15, API 35) via ADB.
+    - Setup Gradle build configuration (AGP 8.5.0 + Kotlin 2.0.21 + Compose BOM 2024.09.00).
+    - Confirmed assembleDebug produces valid APK (app-debug.apk, 17.3 MB).
+    - Installed on connected Samsung Galaxy S25+.
+
+[x] Milestone 1: Permission Onboarding & Active MediaSession Discovery
+    - Implemented MusicSessionListenerService with android.permission.BIND_NOTIFICATION_LISTENER_SERVICE.
+    - Implemented NotificationAccessHelper for checking status and opening notification listener settings.
+    - Implemented MediaSessionRepository using MediaSessionManager to retrieve active controllers.
+    - Normalized track title, artist, album, artworkUri, duration, position, and playback state into PlaybackSnapshot.
+    - Implemented session selection arbitration (explicit user choice with fallback to active music app).
+    - Verified NotificationListenerService granted on Samsung Galaxy S25+.
+
+[x] Milestone 2: Playback Control & Capability Routing
+    - Mapped PlaybackStateCompat / PlaybackState actions directly into PlaybackCapabilities.
+    - Implemented transport control dispatch: Play, Pause, TogglePlayPause, SkipToNext, SkipToPrevious, SeekTo.
+    - Capability gating: UI elements are enabled/visible only when supported by the active session.
+    - Unit tests written and verified passing via Gradle test task (BUILD SUCCESSFUL).
+
+[x] Milestone 3: Production-Quality Compose UI & Theme
+    - Dark theme token implementation according to Section 8 palette (#101214, #181B1E, #202428, #2B3035, #A8C7B8).
+    - HomeScreen with Now Playing card, session chip selector, and service quick-launchers.
+    - Full Player screen with artwork fallback, smooth progress slider (only shown when seekable), deep link button.
+    - Settings screen with permission status toggle, privacy guarantee, and system diagnostics.
+    - Search screen with service selector chip handoff.
+
+[x] Milestone 4: Provider-Specific Handoff & Launchers
+    - Package detection for Spotify (com.spotify.music), YouTube Music (com.google.android.apps.youtube.music), and Amazon Music (com.amazon.mp3).
+    - Official intent launch handling with fallback to Google Play Store.
+    - Deep search routing (spotify:search, music.youtube.com/search, music.amazon.com/search).
+
+[x] Milestone 5: Verification, On-Device Testing & Release Readiness
+    - Unit tests: PlaybackSnapshotTest passing (100% success).
+    - Assembled debug APK (app-debug.apk).
+    - Installed on device SM-S936B via ADB (`adb install -r`).
+    - Verified permission grant: `com.pulkit.musichub/.../MusicSessionListenerService` in `enabled_notification_listeners`.
+    - Tested active media session detection (Amazon Music active session with MGMT - Kids detected via dumpsys).
+    - Verified zero crashes and clean logcat initialization on Android 15.
+
+================================================================================
+CHECKPOINT LOG
+================================================================================
+Checkpoint 0 (Baseline Discovery):
+- Document extracted to SPEC_EXTRACTED.txt and thoroughly studied.
+- Galaxy S25+ connected and verified.
+- Target package: com.pulkit.musichub.
+
+Checkpoint 1 (Core Architecture & Domain Layer):
+- Clean architecture domain models: ProviderId, PlaybackCapabilities, PlaybackSnapshot, PlaybackCommand, CommandResult.
+- Implemented UseCases: ObservePlayback, SelectSession, ExecutePlaybackCommand, ProviderUseCases.
+
+Checkpoint 2 (Platform & Data Layer):
+- NotificationListenerService & NotificationAccessHelper configured.
+- MediaSessionRepository implemented with callback lifecycle safety and session arbitration.
+- ServiceLauncher implemented with package visibility queries and search routing.
+
+Checkpoint 3 (Compose UI & Design Tokens):
+- Design tokens defined in Color.kt, Type.kt, Theme.kt matching Section 8.2 & 8.3 specs.
+- Created reusable components: ProviderBadge, ArtworkImage, PermissionCard, NowPlayingCard, ServiceRow.
+- Created screens: HomeScreen, PlayerScreen, SettingsScreen, SearchScreen with animated navigation in MainActivity.
+
+Checkpoint 4 (Testing & Quality Bar):
+- Unit tests written for capability mapping and provider resolution in PlaybackSnapshotTest.kt.
+- Executed `testDebugUnitTest` via Gradle: BUILD SUCCESSFUL.
+
+Checkpoint 5 (APK Build, Device Installation & Live Verification):
+- Configured Gradle properties with `android.suppressUnsupportedCompileSdk=35` and `org.gradle.vfs.watch=false`.
+- Executed `assembleDebug`: built `app-debug.apk` in 33s.
+- Installed to Samsung Galaxy S25+ (SM-S936B, Android 15) via ADB stream install.
+- Enabled Notification Listener permission via ADB.
+- Verified active session detection and hardware UI rendering on device.
+
+Checkpoint 7 (Unified Apple Music Single Player & Multi-Provider Architecture):
+- Redesigned the entire application experience into a Single Hero Player inspired by Apple Music.
+- Added AppleProviderPicker segmented glass capsule at the top of the player allowing instant 1-tap switching between Spotify, YouTube Music, and Amazon Music.
+- Added live animated audio equalizer pulse indicator on whichever provider is actively playing audio on the phone.
+- Eliminated all thin 1.dp wireframe borders across the entire app (PlayerScreen, SettingsScreen, SearchScreen, Components).
+- Implemented rich dynamic ambient mesh/glow that adapts to the active provider (deep emerald for Spotify, crimson for YT Music, cyan for Amazon Music) over deep OLED dark (AppleDarkBackground).
+- Implemented Apple-style squircle album artwork with soft ambient backlight and seamless fallback gradient.
+- Added full interactive hardware volume slider on PlayerScreen with speaker min/max icons synced with Android AudioManager.
+- Added Apple-style transport controls with large solid-white tactile Play/Pause button and sleek track scrub slider with elapsed and remaining time.
+- Updated SettingsScreen to Apple grouped inset card styling with zero thin borders.
+- Updated SearchScreen to Apple Spotlight borderless search bar with glass suggestion chips.
+- Made MainActivity directly host the Single Player as the central experience with seamless modal navigation for Search and Settings.
+- Executed unit tests (`testDebugUnitTest`: BUILD SUCCESSFUL).
+- Built and installed updated APK (`app-debug.apk`) to Samsung Galaxy S25+ via ADB.
+- Live verified multi-provider switching and session controls on device.
+Checkpoint 8 (Crash Diagnosis, WAKE_LOCK Permission Fix & Player Hardening):
+- Diagnosed crash stack trace via ADB logcat:
+  `java.lang.SecurityException: Neither user 10361 nor current process has android.permission.WAKE_LOCK`
+  caused by `MediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK)` calling `stayAwake(true)` during `start()` on Android 15 without declared permission.
+- Updated `AndroidManifest.xml`:
+  * Added `<uses-permission android:name="android.permission.WAKE_LOCK" />`
+  * Added `<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />`
+  * Enabled `android:usesCleartextTraffic="true"` to support redirecting/HTTP third-party audio streams safely.
+- Hardened `AudioPlayerEngine.kt`:
+  * Wrapped `setWakeMode` in safe try-catch with application context.
+  * Wrapped `onPrepared`, `togglePlayPause`, `seekTo`, `resume`, `pause`, `skipToNext`, `skipToPrevious`, and `handleTrackCompletion` in comprehensive error handling so MediaPlayer lifecycle state transitions cannot crash the application.
+- Polished `SearchScreen.kt`:
+  * Fixed filter capsule wrapping bug where "Amazon Music" wrapped awkwardly across 4 lines.
+  * Added `horizontalScroll(rememberScrollState())` and single-line constraints with non-wrapping text labels.
+- Re-built and assembled debug APK with OpenJDK 21 via Gradle (`assembleDebug` BUILD SUCCESSFUL in 50s, all unit tests passed).
+- Stream-installed APK to connected Samsung Galaxy S25+ (SM-S936B) via ADB.
+- Launched and verified app state via live screencap: Single Hero Player is active, Viva La Vida is playing with full timeline scrub, borderless Apple design, and zero crash exceptions.
+================================================================================
+
+

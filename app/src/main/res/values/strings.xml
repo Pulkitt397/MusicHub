@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MusicHub</string>
+    <string name="notification_access_title">Notification &amp; Media Access</string>
+    <string name="notification_access_description">MusicHub uses Android notification listener access to discover active media sessions and display your current track metadata. No notification content or listening history is ever recorded or uploaded.</string>
+    <string name="enable_access">Enable Media Access</string>
+    <string name="access_granted">Access Granted</string>
+    <string name="access_missing">Permission Required</string>
+    <string name="nothing_playing">Nothing playing</string>
+    <string name="nothing_playing_helper">Start music in any supported app to control playback from MusicHub.</string>
+</resources>
